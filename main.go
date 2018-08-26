@@ -1,48 +1,21 @@
+// Copyright © 2018 Jonathan Pentecost <pentecostjonathan@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
-import (
-	"fmt"
-	"log"
-	"time"
-
-	"github.com/vishen/go-chromecast/application"
-	castdns "github.com/vishen/go-chromecast/dns"
-)
+import "github.com/vishen/go-chromecast/cmd"
 
 func main() {
-	debug := true
-	app := application.NewApplication(debug)
-	// What happens if we call Update first (which tries to write to the connection)
-	// before we have a connection established?
-	// app.Update()
-
-	dnsEntries := castdns.FindCastDNSEntries()
-	var entry castdns.CastDNSEntry
-	found := false
-	for _, e := range dnsEntries {
-		if e.Device == "Chromecast" {
-			entry = e
-			found = true
-			break
-		}
-		log.Printf("found dns entry: %#v", e)
-	}
-	if !found {
-		log.Printf("no entries found\n")
-		return
-	}
-	if err := app.Start(entry); err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("app=%#v\n", app)
-
-	if err := app.Pause(); err != nil {
-		log.Fatal(err)
-	}
-
-	time.Sleep(time.Second * 5)
-
-	if err := app.Unpause(); err != nil {
-		log.Fatal(err)
-	}
+	cmd.Execute()
 }
