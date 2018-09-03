@@ -15,8 +15,6 @@
 package cmd
 
 import (
-	"math"
-
 	"github.com/spf13/cobra"
 )
 
@@ -29,8 +27,7 @@ var nextCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// TODO(vishen): There must be a better way that this
-		if err := app.Seek(math.MaxInt64); err != nil {
+		if err := app.Next(); err != nil {
 			return err
 		}
 		return nil
