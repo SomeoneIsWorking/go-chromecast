@@ -37,11 +37,11 @@ var seekCmd = &cobra.Command{
 		}
 		app, err := castApplication(cmd, args)
 		if err != nil {
-			return err
 			fmt.Printf("unable to get cast application: %v\n", err)
+			return nil
 		}
 		if err := app.Seek(value); err != nil {
-			fmt.Printf("unable to rewind current media: %v\n", err)
+			fmt.Printf("unable to seek current media: %v\n", err)
 			return nil
 		}
 		return nil
