@@ -28,7 +28,7 @@ var loadCmd = &cobra.Command{
 	Use:   "load <filename_or_url>",
 	Short: "Load and play media on the chromecast",
 	Long: `Load and play media files on the chromecast, this will
-start a streaming server locally and serve the media file to the
+start a HTTP server locally and will stream the media file to the
 chromecast if it is a local file, otherwise it will load the url.
 
 If the media file is an unplayable media type by the chromecast, this
