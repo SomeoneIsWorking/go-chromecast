@@ -18,13 +18,14 @@ import (
 
 	"github.com/h2non/filetype"
 
+	"path/filepath"
+
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"github.com/vishen/go-chromecast/cast"
 	pb "github.com/vishen/go-chromecast/cast/proto"
 	"github.com/vishen/go-chromecast/playlists"
 	"github.com/vishen/go-chromecast/storage"
-	"path/filepath"
 )
 
 var (
@@ -52,6 +53,15 @@ type PlayedItem struct {
 	Finished  int64  `json:"finished"`
 }
 
+// LoadOptions contains options for loading media
+type LoadOptions struct {
+	StartTime   int
+	ContentType string
+	Transcode   bool
+	Detach      bool
+	ForceDetach bool
+}
+
 type CastMessageFunc func(*pb.CastMessage)
 
 type App interface {
@@ -61,6 +71,7 @@ type App interface {
 	SetCacheDisabled(bool)
 	SetConnectionRetries(int)
 	SetServerPort(int)
+	SetRequestTimeout(time.Duration)
 	Start(addr string, port int) error
 	Close(stopMedia bool) error
 	LoadApp(appID, contentID string) error
@@ -76,7 +87,7 @@ type App interface {
 	SeekFromStart(value int) error
 	SeekToTime(value float32) error
 	Skipad() error
-	Load(filenameOrUrl string, startTime int, contentType string, transcode, detach, forceDetach bool) error
+	Load(filenameOrUrl string, opts LoadOptions) error
 	QueueLoad(filenames []string, contentType string, transcode bool) error
 	Transcode(contentType string, command string, args ...string) error
 	Next() error
@@ -95,6 +106,9 @@ type Application struct {
 
 	// Device name override (originating e.g. from mdns lookup).
 	deviceNameOverride string
+
+	// Request timeout for cast operations
+	requestTimeout time.Duration
 
 	// Internal mapping of request id to result channel
 	resultChanMap map[int]chan *pb.CastMessage
@@ -345,6 +359,10 @@ func (a *Application) SetDebug(debug bool) {
 	if a.conn != nil {
 		a.conn.SetDebug(debug)
 	}
+}
+
+func (a *Application) SetRequestTimeout(timeout time.Duration) {
+	a.requestTimeout = timeout
 }
 
 func (a *Application) Start(addr string, port int) error {
@@ -798,7 +816,7 @@ func (a *Application) PlayedItems() map[string]PlayedItem {
 	return a.playedItems
 }
 
-func (a *Application) Load(filenameOrUrl string, startTime int, contentType string, transcode, detach, forceDetach bool) error {
+func (a *Application) Load(filenameOrUrl string, opts LoadOptions) error {
 	// if the file is a playlist, ".pls", then just play the first item.
 	if playlists.IsPlaylist(filenameOrUrl) {
 		if strings.HasPrefix(filenameOrUrl, "./") { // convert to file:// uri
@@ -823,26 +841,26 @@ func (a *Application) Load(filenameOrUrl string, startTime int, contentType stri
 		}
 		return a.QueueLoadItems(items, "")
 	}
-	return a.play(filenameOrUrl, startTime, contentType, transcode, detach, forceDetach)
+	return a.play(filenameOrUrl, opts)
 }
 
-func (a *Application) play(filenameOrUrl string, startTime int, contentType string, transcode, detach, forceDetach bool) error {
+func (a *Application) play(filenameOrUrl string, opts LoadOptions) error {
 
 	var mi mediaItem
 	isExternalMedia := false
 	if strings.HasPrefix(filenameOrUrl, "http://") || strings.HasPrefix(filenameOrUrl, "https://") {
 		isExternalMedia = true
-		if contentType == "" {
+		if opts.ContentType == "" {
 			// Try and determine the content type, but if we can't,
 			// let the chromecast try and handle the media file anyway.
-			contentType, _ = a.possibleContentType(filenameOrUrl)
+			opts.ContentType, _ = a.possibleContentType(filenameOrUrl)
 		}
 		mi = mediaItem{
 			contentURL:  filenameOrUrl,
-			contentType: contentType,
+			contentType: opts.ContentType,
 		}
 	} else {
-		mediaItems, err := a.loadAndServeFiles([]string{filenameOrUrl}, contentType, transcode)
+		mediaItems, err := a.loadAndServeFiles([]string{filenameOrUrl}, opts.ContentType, opts.Transcode)
 		if err != nil {
 			return errors.Wrap(err, "unable to load and serve files")
 		}
@@ -853,7 +871,7 @@ func (a *Application) play(filenameOrUrl string, startTime int, contentType stri
 		mi = mediaItems[0]
 	}
 
-	if !forceDetach && !isExternalMedia && detach {
+	if !opts.ForceDetach && !isExternalMedia && opts.Detach {
 		return fmt.Errorf("unable to detach from locally playing media content")
 	}
 
@@ -867,7 +885,7 @@ func (a *Application) play(filenameOrUrl string, startTime int, contentType stri
 	// Send the command to the chromecast
 	a.sendMediaRecv(&cast.LoadMediaCommand{
 		PayloadHeader: cast.LoadHeader,
-		CurrentTime:   startTime,
+		CurrentTime:   opts.StartTime,
 		Autoplay:      true,
 		Media: cast.MediaItem{
 			ContentId:   mi.contentURL,
@@ -878,7 +896,7 @@ func (a *Application) play(filenameOrUrl string, startTime int, contentType stri
 
 	// If we should detach from waiting for media to finish playing
 	// and this is a url loaded external media, then we can exit early.
-	if (detach && isExternalMedia) || forceDetach {
+	if (opts.Detach && isExternalMedia) || opts.ForceDetach {
 		return nil
 	}
 
@@ -1221,7 +1239,7 @@ func (a *Application) startStreamingServer() error {
 	return nil
 }
 
-func (a *Application) serveLiveStreaming(w http.ResponseWriter, r *http.Request, filename string) {
+func (a *Application) serveLiveStreaming(w http.ResponseWriter, _ *http.Request, filename string) {
 	cmd := exec.Command(
 		"ffmpeg",
 		"-re", // encode at 1x playback speed, to not burn the CPU
@@ -1271,7 +1289,11 @@ func (a *Application) sendAndWait(payload cast.Payload, sourceID, destinationID,
 	}
 
 	// Set a timeout to wait for the response
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	timeout := a.requestTimeout
+	if timeout == 0 {
+		timeout = time.Second * 5 // Default to 5 seconds
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	// TODO(vishen): not concurrent safe. Not a problem at the moment
