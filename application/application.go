@@ -996,6 +996,16 @@ func (a *Application) ensureIsAppID(appID string) error {
 	return nil
 }
 
+// EnsureIsAppID is an exported wrapper for ensureIsAppID
+func (a *Application) EnsureIsAppID(appID string) error {
+	return a.ensureIsAppID(appID)
+}
+
+// SendMediaRecv is an exported wrapper for sendMediaRecv
+func (a *Application) SendMediaRecv(payload cast.Payload) error {
+	return a.sendMediaRecv(payload)
+}
+
 func (a *Application) Slideshow(filenames []string, duration int, repeat bool) error {
 	mediaItems, err := a.loadAndServeFiles(filenames, "", false)
 	if err != nil {
