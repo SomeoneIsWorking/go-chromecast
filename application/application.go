@@ -61,6 +61,7 @@ type LoadOptions struct {
 	Detach      bool
 	ForceDetach bool
 	AppId       string
+	CustomData  any
 }
 
 type CastMessageFunc func(*pb.CastMessage)
@@ -893,6 +894,7 @@ func (a *Application) play(filenameOrUrl string, opts LoadOptions) error {
 		PayloadHeader: cast.LoadHeader,
 		CurrentTime:   opts.StartTime,
 		Autoplay:      true,
+		CustomData:    opts.CustomData,
 		Media: cast.MediaItem{
 			ContentId:   mi.contentURL,
 			StreamType:  "BUFFERED",
