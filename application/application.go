@@ -60,6 +60,7 @@ type LoadOptions struct {
 	Transcode   bool
 	Detach      bool
 	ForceDetach bool
+	AppId       string
 }
 
 type CastMessageFunc func(*pb.CastMessage)
@@ -875,7 +876,12 @@ func (a *Application) play(filenameOrUrl string, opts LoadOptions) error {
 		return fmt.Errorf("unable to detach from locally playing media content")
 	}
 
-	if err := a.ensureIsDefaultMediaReceiver(); err != nil {
+	appId := defaultChromecastAppID
+	if opts.AppId != "" {
+		appId = opts.AppId
+	}
+
+	if err := a.ensureIsAppID(appId); err != nil {
 		return err
 	}
 
