@@ -147,6 +147,13 @@ type CustomData struct {
 	PlayerState int `json:"playerState"`
 }
 
+// NamespaceMessage is a generic payload for sending messages on a custom cast namespace.
+type NamespaceMessage struct {
+	PayloadHeader
+	Type string      `json:"type,omitempty"`
+	Data interface{} `json:"data,omitempty"`
+}
+
 type MediaStatusResponse struct {
 	PayloadHeader
 	Status []Media `json:"status"`

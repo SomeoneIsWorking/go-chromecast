@@ -96,6 +96,7 @@ type App interface {
 	Previous() error
 	SetVolume(value float32) error
 	SetMuted(value bool) error
+	SendCustom(namespace string, typ string, data any) error
 	Slideshow(filenames []string, duration int, repeat bool) error
 	AddMessageFunc(f CastMessageFunc)
 	PlayedItems() map[string]PlayedItem
@@ -1488,4 +1489,17 @@ func (a *Application) Transcode(contentType string, command string, args ...stri
 	// Wait until we have been notified that the media has finished playing
 	a.MediaWait()
 	return nil
+}
+
+func (a *Application) SendCustom(namespace string, typ string, data any) error {
+	if a.application == nil {
+		return ErrApplicationNotSet
+	}
+
+	_, err := a.send(&cast.NamespaceMessage{
+		PayloadHeader: cast.PayloadHeader{Type: "CUSTOM"},
+		Type:          typ,
+		Data:          data,
+	}, defaultSender, a.application.TransportId, namespace)
+	return err
 }
