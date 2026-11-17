@@ -55,7 +55,9 @@ type PlayedItem struct {
 
 // LoadOptions contains options for loading media
 type LoadOptions struct {
-	StartTime   int
+	StartTime int
+	// Paused loads the media without starting playback.
+	Paused      bool
 	ContentType string
 	Transcode   bool
 	Detach      bool
@@ -894,7 +896,7 @@ func (a *Application) play(filenameOrUrl string, opts LoadOptions) error {
 	a.sendMediaRecv(&cast.LoadMediaCommand{
 		PayloadHeader: cast.LoadHeader,
 		CurrentTime:   opts.StartTime,
-		Autoplay:      true,
+		Autoplay:      !opts.Paused,
 		CustomData:    opts.CustomData,
 		Media: cast.MediaItem{
 			ContentId:   mi.contentURL,
